@@ -1,0 +1,145 @@
+
+	site.modules.initTranslation = function() {
+		site.modules.translations.addVocab('es_ES', {
+		// availbox
+		"room_no":        "Habitación [NUMBER]",
+		"adults_title":   "Adultos",
+		"children_title": "Niños",
+		"rooms_guests":   "Habitaciones y Huéspedes:",
+		"age_title":      "Edades de los niños",
+		"plu_rooms":      "[NUMBER] habitación|[NUMBER] habitaciones",
+		"plu_adults":     "[NUMBER] Adulto|[NUMBER] Adultos",
+		"plu_children":   "[NUMBER] Niño|[NUMBER] Niños",
+		"plu_nights":     "[NUMBER] noche|[NUMBER] noches",
+		"paxes":          "Pasajeros:",
+		"pax":            "Pasajeros",
+		"ch_age_error_one": "Especifica la edad del niño",
+		"ch_age_error_plu": "Especifica la edad de los niños",
+
+		"rooms_number":   "Seleccionar el número de habitaciones:",
+
+		// autocomplete search
+		"s-areas":        "Ciudades/Zonas",
+		"s-hotel":        "Hoteles",
+		"s-landmarks":    "Puntos de interés",
+		"s-airports":     "Aeropuertos",
+		"s-all":          "Todos los resultados",
+
+		"plu_more_rooms": "Mostrar [NUMBER] tipo más de habitación|Mostrar [NUMBER] tipos más de habitaciones",
+		"plu_stops":      "[NUMBER] escala|[NUMBER] escalas",
+		"stops_0":        "Directo",
+
+		// map
+		"plu_reviews":    "[NUMBER] comentario|[NUMBER] comentarios",
+		"show_details":   "Mostrar los detalles",
+
+
+		// reviews
+		"rating_1":  "Puntuación de los huéspedes",
+		"rating_2":  "Puntuación de los huéspedes",
+		"rating_3":  "Puntuación de los huéspedes",
+		"rating_4":  "Puntuación de los huéspedes",
+		"rating_5":  "Bien",
+		"rating_6":  "Muy bien",
+		"rating_7":  "Excelente",
+		"rating_8":  "Excepcional",
+		"rating_9":  "Espléndido",
+		"rating_10": "Exclusivo",
+
+		//multybooking
+		"multy_booking_select":   "Por favor, elige tu [ORDER_ROOMS] para [PERSONS]",
+		"order_rooms_1":  "primera habitación",
+		"order_rooms_2":  "segunda habitación",
+		"order_rooms_3":  "tercera habitación",
+		"order_rooms_4":  "cuarta habitación",
+		"order_rooms_5":  "quinta habitación",
+		"order_rooms_6":  "sexta habitación",
+		"plu_for_adults":     "[NUMBER] adulto|[NUMBER] adultos",
+		"plu_for_child":   "y [NUMBER] niño|y [NUMBER] niños",
+		"plu_number_rooms_avail":   "([NUMBER] habitación disponible)|([NUMBER] habitaciones disponibles)",
+		"selected_rooms":   "Has seleccionado [NUMBER_ROOMS]",
+		"click_to_select":   "Haz clic para seleccionar [ORDER_ROOMS] para [PERSONS]",
+		"selected_room_1":  "una habitación",
+		"selected_room_2":  "dos habitaciones",
+		"selected_room_3":  "tres habitaciones",
+		"selected_room_4":  "cuatro habitaciones",
+		"selected_room_5":  "cinco habitaciones",
+		"selected_room_6":  "seis habitaciones",
+
+		
+				"dist":   "[DISTANCE] km desde [LANDMARK]",
+				"dist-m": "A [DISTANCE] metros de [LANDMARK]",
+			
+
+		"from":      "Desde",
+		"close-map": "cerrar",
+
+
+
+		//new hotel page, check avail form, gallery, calendar
+		"av_room":  "habitación",
+		"av_adult":  "Adulto",
+		"av_child":  "Niño",
+		"av_children_age":  "Edades de los niños",
+		"av_add_room":  "Añadir habitación",
+		"plu_hotel_photos_gallery":   "[NUMBER] foto|[NUMBER] fotos",
+		"plu_guests_av":   "<span>[NUMBER]</span> Huésped|<span>[NUMBER]</span> Huéspedes",
+		"plu_rooms_av":   "[NUMBER] Habitación|[NUMBER] Habitaciones",
+		"calendar_phrase":   "¿Cuándo vas a alojarte en",
+		"travelling_with_group_gb":   "¿Estás viajando en grupo?",
+		"get_group_rate_gb":   "Obtener una tarifa de grupo",
+		"map_hotel_details":   "Detalles",
+		"room_setting":   "Configuraciones",
+		"plu_hotels_search":   "Hemos comprobado [NUMBER] opción cerca|Hemos comprobado [NUMBER] opciones cerca",
+		"apply":   "Aplicar",
+		"guests_count_form":   "Número de huéspedes",
+		"av_children":   "Niños",
+		"plu_age_children":   "Edad del niño|Edad de los niños",
+		"popup_change_price":   "El precio de este alojamiento ha cambiado de [PRICE_OLD] a [PRICE_NEW].",
+		"popup_change_room":   "La habitación que has seleccionado no está disponible. ¿Te gustaría reservar [ROOM TYPE] al precio de [PRICE] a cambio?",
+		"popup_change_policy":   "La tarifa de tu reserva ha cambiado de Cancelación gratis a <strong>No reembolsable</strong>.",
+		"rate_policy_change":   "La política de tarifas ha cambiado. Por favor, recarga la página.",
+		"free_cancellation":   "Cancelación gratis antes del [DATE]",
+		"room_facilities":   "Facilidades de la habitación:",
+		"room_description":   "Descripción de la habitación:",
+		"room_sqm":   "[METERS] m²",
+
+		//hotel map vocabs
+		"m_popup_nearby":   "Cerca",
+		"m_popup_restaurants":   "Restaurantes",
+		"m_popup_city_landmarks":   "Lugares de interés",
+		"m_popup_back_to_hotel":   "Show hotel on map",
+		"m_popup_legend_title":   "Leyenda",
+		"m_popup_legend_hotels":   "Hoteles",
+		"m_popup_legend_apartments":   "Apartamentos",
+		"m_popup_legend_villas":   "Villas",
+		"m_popup_legend_hostels":   "Hostales",
+		"m_popup_show_on_map":   "Mostrar en el mapa:",
+		"m_popup_show_property_on_map":   "Mostrar [PROPERTY_TYPE] en el mapa",
+
+        //hotel list vocabs
+        "hl_more":   "Más",
+		"plu_rooms_found":   "[NUMBER] habitación encontrada desde|[NUMBER] habitaciones encontradas desde",
+		"plu_view_rooms":   "Ver habitación|Ver habitaciones",
+
+		//hotellist map vocabs
+		"price_from_hl":   "Precio desde",
+		"go_to_list":   "Volver a la lista",
+		"per_night_hl":   "por noche",
+
+		//mybooking
+		"check_in_date":   "Check-in: [CHECK_IN_DATE]",
+		"check_out_date":   "Check-out: [CHECK_OUT_DATE]",
+		"check_in_time":   "ora del check-in: desde las [CHECK_IN_TIME]",
+		"check_out_time":   "ora del check-out: [CHECK_OUT_TIME]",
+		"desc_view_edit_cancel":   "Puedes ver, editar o cancelar tu reserva aquí:",
+		"expluded_in":   "No incluido",
+		"included_in":   "Incluido",
+		//tripnet book page
+		"total_price_in_hotel_currency":   "A pagar en [CUR]",
+		"this_is_an_approximate_cost":   "Este es el coste aproximado calculado en [CUR]. El pago se realizará en la moneda del alojamiento ([HOTEL_CUR]). El cambio de moneda puede cambiar hasta el momento del pago.",
+		"required_field":   "Este campo es obligatorio."});
+	}
+
+
+

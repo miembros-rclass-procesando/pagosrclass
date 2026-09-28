@@ -1,0 +1,1078 @@
+function secureField(field, contextPath, coBrandingRanges) {
+
+    var Mode = {
+        TOKENIZE: "TOKENIZE",
+        PAY: "PAY",
+        REGISTER: "REGISTER",
+        INIT: "INIT",
+        SHOW: "SHOW"
+    };
+
+    var additionalCards = [
+        {
+            type: 'maestro',
+            patterns: [50, 5018, 502, 503, 506, 56, 58, 6301218, 639, 6220, 67],
+            format: /(\d{1,4})/g,
+            length: [12, 13, 14, 15, 16, 17, 18, 19],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: "amex",
+            patterns: [34, 37],
+            format: /(\d{1,4})(\d{1,6})?(\d{1,5})?/,
+            length: [15],
+            cvcLength: [4],
+            luhn: true
+        },
+        {
+            type: 'uatp',
+            patterns: [1],
+            format: /(\d{1,4})(\d{1,5})?(\d{1,6})?/,
+            length: [15],
+            cvcLength: [0],
+            luhn: true
+        },
+        {
+            type: 'elocard',
+            patterns: [401178, 401179, 431274, 438935, 451416, 457393, 457631, 457632, 504175, 506699, 5067, 509, 627780, 636297, 636368, 650, 6516, 6550],
+            format: /(\d{1,4})/g,
+            length: [16],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: 'hipercard',
+            patterns: [384100, 384140, 384160, 606282, 637095, 637568, 637599, 637609, 637612],
+            format: /(\d{1,4})/g,
+            length: [16],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: 'jcb',
+            patterns: [3088, 3089, 3090, 3091, 3092, 3093, 3094, 3096, 3097, 3098, 3099, 3100, 3101, 3102, 3112, 3113, 3114, 3115, 3116, 3117, 3118, 3119, 3120, 3158, 3159, 3337, 3338, 3339, 334],
+            format: /(\d{1,4})/g,
+            length: [16, 17, 18],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: 'jcb',
+            patterns: [3528, 3529, 353, 354, 355, 356, 357, 358],
+            format: /(\d{1,4})/g,
+            length: [16, 17, 18, 19],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: 'unionpay',
+            patterns: [62, 88],
+            format: /(\d{1,4})/g,
+            length: [16, 17, 18, 19],
+            cvcLength: [3],
+            luhn: false
+        },
+        {
+            type: 'unionpay',
+            patterns: [817199],
+            format: /(\d{1,4})/g,
+            length: [16],
+            cvcLength: [3],
+            luhn: false
+        },
+        {
+            type: 'dinersclub',
+            patterns: [36],
+            format: /(\d{1,4})(\d{1,6})?(\d{1,4})?/,
+            length: [14],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: 'dinersclub',
+            patterns: [650852],
+            format: /(\d{1,4})/g,
+            length: [16],
+            cvcLength: [3],
+            luhn: true
+        },
+        {
+            type: 'discover',
+            patterns: [60, 6011, 644, 65],
+            format: /(\d{1,4})/g,
+            length: [16],
+            cvcLength: [3],
+            luhn: true
+        }
+    ];
+
+    var lastKnownFocus = false;
+
+    window.fieldElement = document.getElementById("field");
+
+    window.log = function () {
+        if (window.console && field.debug) {
+            var args = Array.prototype.slice.call(arguments).map(function (o) {
+                return (typeof o === "object") ? JSON.stringify(o, null, "\t") : o;
+            });
+            args.splice(1, 0, "color: green");
+            args[0] = "%c[" + field.fieldName + "]: " + args[0];
+            console.log.apply(console, args);
+        }
+    };
+
+    window.getFrameName = function (fieldName) {
+        if (field.instanceId == null) {
+            return "iframe-" + fieldName; // legacy
+        } else {
+            return "securefields-" + field.instanceId + '--' + fieldName;
+        }
+    };
+
+    window.getField = function (fieldName) {
+        return window.parent.frames[getFrameName(fieldName)].fieldElement;
+    };
+
+    if (field.fieldNames == null || field.fieldNames.length === 0) {
+        // backward compatibility
+        field.fieldNames = ["cardNumber", "cvv"];
+    }
+
+    if (typeof field.error !== "undefined") {
+        window.parent.postMessage({
+            "instanceId": field.instanceId,
+            "messageType": "initResponse",
+            "error": field.error
+        }, "*");
+        return;
+    }
+
+    function fieldReady(details) {
+        window.parent.postMessage({
+            "instanceId": field.instanceId,
+            "messageType": "fieldReady",
+            "fieldName": field.fieldName,
+            "formId": field.formId,
+            "details": details
+        }, "*");
+
+        log("iframe[" + window.name + "]: ready");
+    }
+
+    window.addEventListener("message", receiveMessage, false);
+
+    function gather() {
+        var result = {};
+
+        $.each(field.fieldNames, function (index, fieldName) {
+            try {
+                var frame = window.parent.frames[getFrameName(fieldName)];
+                result[fieldName] = cleanUp(frame.fieldElement.value);
+            } catch (e) {
+            }
+        });
+
+        return result;
+    }
+
+    function cleanUp(string) {
+        return string.replace(/\s+/g, '');
+    }
+
+    function validate(fieldValues, eventName, additionalEventData) {
+        var fields = {};
+        var hasErrors = false;
+        var cvvRequired = null;
+        var stripeCardType = null;
+        var paymentMethod = null;
+
+        $.each(field.fieldNames, function (index, fieldName) {
+            var value = fieldValues[fieldName];
+
+            if (typeof value === "undefined") {
+                return;
+            }
+
+            fields[fieldName] = {
+                "length": value.length,
+                "valid": false
+            };
+
+            if (fieldName === "cardNumber") {
+                fields.cardNumber.valid = $.payment.validateCardNumber(value);
+                stripeCardType = $.payment.cardType(value);
+                if (stripeCardType !== null) {
+                    paymentMethod = field.paymentMethods[stripeCardType];
+                    if (paymentMethod !== null) {
+                        fields.cardNumber.paymentMethod = paymentMethod.code;
+                        cvvRequired = paymentMethod.cvvRequired;
+                    }
+                }
+                if (field.coBrandingEnabled) {
+
+                    coBrandingRanges.forEach(function (coBranding) {
+                        if (binarySearch(fieldValues['cardNumber'], coBranding.binRanges) >= 0) {
+                            fields.cardNumber.coBrand = coBranding.brand;
+                        }
+                    });
+                }
+            } else if (fieldName === "cvv") {
+                if (Object.keys(field.paymentMethods || {}).length === 0 || stripeCardType !== null) {
+                    fields.cvv.valid = $.payment.validateCardCVC(value, stripeCardType);
+                } else {
+                    fields.cvv.valid = Object.keys(field.paymentMethods).reduce(function (valid, paymentMethod) {
+                        return valid || $.payment.validateCardCVC(value, paymentMethod);
+                    }, false);
+                }
+                if (cvvRequired !== null) {
+                    fields.cvv.required = cvvRequired;
+                    if (!cvvRequired && fields.cvv.length === 0 && !fields.cvv.valid) {
+                        fields.cvv.valid = true;
+                    }
+                }
+            } else if (fieldName === "iban") {
+                fields.iban.valid = IBAN.isValid(value);
+            } else if (fieldName === "accountNumber" || fieldName === "branchCode") {
+                var minlength = parseInt(getField(fieldName).getAttribute("minlength"));
+                var maxlength = parseInt(getField(fieldName).getAttribute("maxlength"));
+
+                fields[fieldName].valid = (value.length >= minlength && value.length <= maxlength);
+            }
+
+            if (!fields[fieldName].valid) {
+                hasErrors = true;
+            }
+
+            var classList = getField(fieldName).classList;
+
+            // not using classList.toggle because of IE 11
+            // https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/11865865/
+            if (fields[fieldName].length === 0) {
+                classList.add("empty");
+            } else {
+                classList.remove("empty");
+            }
+
+            if (fields[fieldName].length > 0 && !fields[fieldName].valid) {
+                classList.add("invalid");
+            } else {
+                classList.remove("invalid");
+            }
+
+            if (fields[fieldName].valid) {
+                classList.add("valid");
+            } else {
+                classList.remove("valid");
+            }
+
+        });
+
+        var message = {
+            "instanceId": field.instanceId,
+            "messageType": eventName || "validateResponse",
+            "response": {
+                "fields": fields,
+                "hasErrors": hasErrors
+            }
+        };
+
+        if (typeof additionalEventData !== "undefined") {
+            message.response.event = additionalEventData;
+        }
+
+        window.parent.postMessage(message, "*");
+
+        return {
+            "fields": fields,
+            "hasErrors": hasErrors,
+            "fieldValues": fieldValues,
+            "paymentMethod": paymentMethod === null ? null : paymentMethod.code
+        };
+    }
+
+    window.onWalletError = function (errorMessage) {
+        window.parent.postMessage({
+            instanceId: field.instanceId,
+            messageType: 'error',
+            response: {
+                result: 'error',
+                error: errorMessage
+            }
+        }, '*');
+    }
+
+    window.onWalletTokenizationButtonClick = function (walletToken, walletCardDetails, walletIndicator) {
+        var params = {
+            merchantId: field.merchantId,
+            formId: field.formId,
+            transactionId: field.transactionId,
+            walletToken,
+            walletCardDetails,
+            walletIndicator
+        };
+
+        return $.ajax({ method: 'POST', dataType: 'json', cache: false, url: 'paymentField', data: params })
+            .done(function (response) {
+                var responseEvent = {
+                    transactionId: response.transactionId,
+                    result: 'success'
+                };
+
+                window.parent.postMessage({
+                    instanceId: field.instanceId,
+                    messageType: 'submitResponse',
+                    response: responseEvent
+                }, '*');
+            })
+            .fail(function (jqXHR, textStatus, errorThrown) {
+                onWalletError($.trim(textStatus + ' ' + errorThrown));
+            });
+    }
+
+    var receivedMessageHandlers = {
+        "fieldEvent": function (data) {
+            notify(data.domEvent, data.fieldName, data.domEventProperties);
+        },
+        "submitRequest": submit,
+        "validateRequest": function () {
+            validate(gather());
+        },
+        "cardInfoRequest": cardInfo,
+        "setStyle": function (data) {
+            setStyle(data.selectors, data.style, data.globalSelector);
+        },
+        "setPlaceholder": function (data) {
+            window.fieldElement.placeholder = data.placeholder;
+        },
+        "setAriaLabel": function (data) {
+            window.fieldElement.setAttribute("aria-label", data.ariaLabel);
+        },
+        "clear": function () {
+            window.fieldElement.value = '';
+            notify("clear");
+        },
+        "checkFocus": function (data) {
+            if (!$(fieldElement).is(":focus") && lastKnownFocus) {
+                onblur();
+            }
+        }
+    };
+
+    function receiveMessage(event) {
+        log("<<< instance #%s, origin: %s\n%s", field.instanceId, event.origin, event.data);
+        var handler = receivedMessageHandlers[event.data.messageType];
+        if (handler) {
+            handler.apply(this, [event.data]);
+        }
+    }
+
+    var lastSubmitRequest = null;
+    var lastSubmitResponse = null;
+    var ongoingSubmits = 0;
+
+    function submit(message) {
+        var form = validate(gather());
+
+        var payParameters = message.parameters || {};
+
+        if (form.hasErrors) {
+            return null; // errorReply("The form is not yet valid")
+        }
+
+        function errorReply(errorMessage) {
+            var response = {
+                "result": "error",
+                "error": errorMessage
+            };
+
+            lastSubmitResponse = response;
+
+            window.parent.postMessage({
+                "instanceId": field.instanceId,
+                "messageType": "submitResponse",
+                "messageId": message.messageId,
+                "response": response
+            }, "*");
+        }
+
+        var responseHandler = function (response, textStatus, jqXHR, errorThrown) {
+            log("Submit response %s", response);
+
+            if (response == null) {
+                errorReply($.trim(textStatus + " " + errorThrown));
+            } else if (response.error) {
+                errorReply(response.error);
+            } else if (response.tds2EnrollmentResult) {
+
+                var frameReady = $.Deferred();
+
+                setTimeout(function () {
+                    frameReady.reject(false);
+                }, field.tds2MethodUrlNotificationTimeoutMillis);
+
+                window.addEventListener("message", function (event) {
+                    if (event.data === "frameReady") {
+                        frameReady.resolve(true);
+                    }
+                });
+
+                var $body = $("body");
+                $("<iframe>").attr("name", "hiddenIframe").hide().appendTo($body);
+                $("<form>")
+                    .attr("action", response.tds2EnrollmentResult.methodUrl)
+                    .attr("method", "post")
+                    .attr("target", "hiddenIframe")
+                    .append(
+                        $("<input>")
+                            .attr("type", "hidden")
+                            .attr("name", "threeDSMethodData")
+                            .val(response.tds2EnrollmentResult.methodData)
+                    )
+                    .hide().appendTo($body)
+                    .submit();
+
+                frameReady.always(function (submitResult) {
+                    ongoingSubmits++;
+                    log("Calling submit via ajax after tds2methodUrl submit. Ongoing submits %d", ongoingSubmits);
+                    request.tds2IframeSubmitted = submitResult ? "Y" : "N";
+
+                    request.transactionId = response.transactionId;
+                    $.ajax({method: "POST", cache: false, url: "paymentField", data: request})
+                        .done(function (data, textStatus, jqXHR) {
+                            responseHandler(data, textStatus, jqXHR);
+                        })
+                        .fail(function (jqXHR, textStatus, errorThrown) {
+                            responseHandler(null, textStatus, jqXHR, errorThrown);
+                        })
+                        .always(function () {
+                            ongoingSubmits--;
+                        });
+                }).done(function () {
+                    log("tds2methodUrl submit completed");
+                }).fail(function () {
+                    log("tds2methodUrl submit timed out");
+                });
+            } else {
+                var responseEvent = {
+                    "transactionId": response.transactionId,
+                    "result": "success"
+                };
+
+                if (response.cardInfo) {
+                    responseEvent.cardInfo = response.cardInfo;
+                }
+
+                if (response.dcc) {
+                    responseEvent.dcc = response.dcc;
+                    responseEvent.result = "dccAvailable";
+                }
+
+                if (response.mcp) {
+                    responseEvent.mcp = response.mcp;
+                }
+
+                if (response.redirect) {
+                    responseEvent.redirect = response.redirect;
+                }
+
+                lastSubmitResponse = response;
+
+                window.parent.postMessage({
+                    "instanceId": field.instanceId,
+                    "messageType": "submitResponse",
+                    "messageId": message.messageId,
+                    "response": responseEvent
+                }, "*");
+            }
+        }
+
+        if (ongoingSubmits > 0) {
+            return responseHandler({'error' : 'form submit already ongoing' });
+        }
+
+        var fieldValues = form.fieldValues;
+
+        var request = {
+            "mode": field.mode,
+            "formId": field.formId,
+            "cardNumber": fieldValues.cardNumber,
+            "cvv": fieldValues.cvv,
+            "iban": fieldValues.iban,
+            "accountNumber": fieldValues.accountNumber,
+            "branchCode": fieldValues.branchCode,
+            "paymentMethod": form.paymentMethod,
+            "countryCode": field.countryCode
+        };
+
+        if (field.merchantId != null) {
+            request.merchantId = field.merchantId;
+        }
+
+        if (field.transactionId != null) {
+            request.transactionId = field.transactionId;
+        }
+
+        if (payParameters.dccSelected != null) {
+            request.dccSelected = payParameters.dccSelected;
+        }
+
+        request.expy = payParameters.expy;
+        request.expm = payParameters.expm;
+        request.email = payParameters.email;
+        request.phoneNumber = payParameters.phoneNumber;
+        request.usage = payParameters.usage;
+        request["3D"] = JSON.stringify(payParameters["3D"]);
+
+        if (field.mode === Mode.PAY) {
+            request.amount = payParameters.amount;
+            request.currency = payParameters.currency;
+            request.returnUrl = payParameters.returnUrl;
+        } else if (field.mode === Mode.REGISTER) {
+            request.currency = payParameters.currency;
+            request.returnUrl = payParameters.returnUrl;
+        }
+
+        $.extend(request, message.browserDetails);
+
+        var currentSubmitRequest = JSON.stringify(request);
+        if (lastSubmitResponse != null && lastSubmitRequest === currentSubmitRequest) {
+            log("Submit result returned again. Ajax skipped.");
+            return responseHandler(lastSubmitResponse);
+        }
+        lastSubmitRequest = currentSubmitRequest;
+        lastSubmitResponse = null;
+
+        ongoingSubmits++;
+        log("Calling submit via ajax. Ongoing submits %d", ongoingSubmits);
+        $.ajax({method: "POST", cache: false, url: "paymentField", data: request})
+            .done(function (data, textStatus, jqXHR) {
+                responseHandler(data, textStatus, jqXHR);
+            })
+            .fail(function (jqXHR, textStatus, errorThrown) {
+                responseHandler(null, textStatus, jqXHR, errorThrown);
+            })
+            .always(function () {
+                ongoingSubmits--;
+            });
+    }
+
+    function maskCardNumber(cardNumber) {
+        var length = cardNumber.length;
+        var first = 6;
+        var last = Math.min(length - 12, 4);
+        return cardNumber.substring(0, first) +
+            new Array(length - first - last + 1).join('x') +
+            cardNumber.substring(cardNumber.length - last);
+    }
+
+    var cardInfos = {};
+
+    function cardInfo(message) {
+        var form = validate(gather(), null, {
+            'trigger': 'cardInfo'
+        });
+
+        if (!form.fields.cardNumber.valid) {
+            return errorReply("The cardNumber is not yet valid");
+        }
+
+        var cardNumber = form.fieldValues.cardNumber;
+        var bin = cardNumber.substring(0, 12);
+        var maskedCardNumber = maskCardNumber(cardNumber);
+
+        if (cardInfos[bin] !== undefined) {
+            return successReply(cardInfos[bin]);
+        }
+
+        var request = {
+            cardNumber: bin,
+            "mode": field.mode,
+            "formId": field.formId,
+            "transactionId": field.transactionId,
+            "instanceId": field.instanceId
+        }
+
+        function successReply(response) {
+            window.parent.postMessage({
+                "instanceId": field.instanceId,
+                "messageType": "cardInfoResponse",
+                "messageId": message.messageId,
+                "response": response
+            }, "*");
+        }
+
+        function errorReply(errorMessage) {
+            window.parent.postMessage({
+                "instanceId": field.instanceId,
+                "messageType": "cardInfoResponse",
+                "messageId": message.messageId,
+                "response": {
+                    "result": "error",
+                    "error": errorMessage
+                }
+            }, "*");
+        }
+
+        var responseHandler = function (response, textStatus, jqXHR, errorThrown) {
+            log("cardInfo AJAX response %s", response);
+            if (response != null) {
+                cardInfos[bin] = response;
+                response.maskedCard = maskedCardNumber;
+                response.paymentMethod = form.fields.cardNumber.paymentMethod;
+                successReply(response);
+            } else {
+                errorReply($.trim(textStatus + " " + errorThrown));
+            }
+        }
+
+        $.ajax({method: "POST", cache: false, url: "paymentField/cardInfo", data: request})
+            .done(function (data, textStatus, jqXHR) {
+                responseHandler(data, textStatus, jqXHR);
+            })
+            .fail(function (jqXHR, textStatus, errorThrown) {
+                responseHandler(null, textStatus, jqXHR, errorThrown);
+            })
+            .always(function () {
+            });
+    }
+
+    function setStyle(selectors, style, globalSelector) {
+
+        var allowedPseudoClasses = [":hover", ":disabled", ":enabled", ":focus",
+            "::placeholder", "::form",
+            ".invalid", ".valid", ".empty", ".identified",
+            ":-ms-input-placeholder", "::-ms-input-placeholder"];
+
+        var pseudoClass =
+            selectors.map(function (selector) {
+                var allowed = allowedPseudoClasses.indexOf(selector) >= 0 ||
+                    selector.match(/:not\([\w\-:\\.]+\)/);
+
+                return allowed ? selector : "";
+            }).join("");
+
+        var parsedStyle = sanitizeCSS(parseCSS(style));
+
+        var rules = [];
+        for (var jsName in parsedStyle) {
+            if (parsedStyle.hasOwnProperty(jsName)) {
+                var value = $.trim(parsedStyle[jsName]);
+
+                log("Setting style %s [%s=%s] pseudoClass=%s globalSelector=%s",
+                    selectors, jsName, value, pseudoClass, globalSelector);
+
+                if (pseudoClass.length > 0 || globalSelector) {
+                    if (pseudoClass.length > 0 ||
+                        globalSelector && globalSelector.indexOf("@media") === 0) {
+                        if (value.indexOf("!important") === -1) {
+                            value += " !important";
+                        }
+                        rules.push(camelCaseToDash(jsName) + ":" + value);
+                    } else {
+                        rules.push(camelCaseToDash(jsName) + ":" + value);
+                    }
+                } else {
+                    window.fieldElement.style[jsName] = value;
+                }
+            }
+        }
+
+        if (rules.length > 0) {
+            addCSSRule(getSelector(pseudoClass, globalSelector), rules.join(";"), globalSelector);
+        }
+    }
+
+    function getSelector(pseudoClass, globalSelector) {
+        if (pseudoClass.indexOf("::form") === 0) {
+            return "form" + pseudoClass.replace("::form", "");
+        } else if (globalSelector === "@font-face") {
+            return null;
+        } else {
+            return "#field" + pseudoClass;
+        }
+    }
+
+    function camelCaseToDash(str) {
+        return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+    }
+
+    function parseCSS(style) {
+        if (typeof style === "object") {
+            return style;
+        }
+
+        return $.trim(style).split(";").reduce(function (accumulator, stylePair) {
+            var nvp = stylePair.split(":");
+            var cssName = $.trim(nvp[0]);
+            var jsName = $.camelCase(cssName);
+
+            var value = $.trim(nvp[1]);
+            if (jsName.length !== 0) {
+                accumulator[jsName] = value;
+            }
+            return accumulator;
+        }, {});
+    }
+
+    var allowedCssProperties = ["alignContent", "alignItems", "alignSelf", "animation", "animationDelay",
+        "animationDirection", "animationDuration", "animationFillMode", "animationIterationCount", "animationName",
+        "animationTimingFunction", "animationPlayState",
+        "appearance", // manual
+        "background", "backgroundAttachment", "backgroundColor",
+        "backgroundImage", "backgroundPosition", "backgroundRepeat", "backgroundClip", "backgroundOrigin",
+        "backgroundSize", "backfaceVisibility", "border", "borderBottom", "borderBottomColor", "borderBottomLeftRadius",
+        "borderBottomRightRadius", "borderBottomStyle", "borderBottomWidth", "borderCollapse", "borderColor",
+        "borderImage", "borderImageOutset", "borderImageRepeat", "borderImageSlice", "borderImageSource",
+        "borderImageWidth", "borderLeft", "borderLeftColor", "borderLeftStyle", "borderLeftWidth", "borderRadius",
+        "borderRight", "borderRightColor", "borderRightStyle", "borderRightWidth", "borderSpacing", "borderStyle",
+        "borderTop", "borderTopColor", "borderTopLeftRadius", "borderTopRightRadius", "borderTopStyle",
+        "borderTopWidth", "borderWidth", "bottom", "boxDecorationBreak", "boxShadow", "boxSizing", "captionSide",
+        "clear", "clip", "color", "columnCount", "columnFill", "columnGap", "columnRule", "columnRuleColor",
+        "columnRuleStyle", "columnRuleWidth", "columns", "columnSpan", "columnWidth", "content", "counterIncrement",
+        "counterReset", "cursor", "direction", "display", "emptyCells",
+        "filter-",
+        "flex", "flexBasis", "flexDirection", "flexFlow", "flexGrow", "flexShrink", "flexWrap",
+        "float", //"cssFloat",
+        "font", "fontFamily", "fontSize", "fontStyle", "fontVariant", "fontWeight", "fontSizeAdjust", "fontStretch",
+        "hangingPunctuation", "height", "hyphens", "icon", "imageOrientation", "justifyContent", "left", "letterSpacing",
+        "lineHeight", "listStyle", "listStyleImage", "listStylePosition", "listStyleType", "margin", "marginBottom",
+        "marginLeft", "marginRight", "marginTop", "maxHeight", "maxWidth", "minHeight", "minWidth", "navDown", "navIndex",
+        "navLeft", "navRight", "navUp", "opacity", "order", "orphans", "outline", "outlineColor", "outlineOffset",
+        "outlineStyle", "outlineWidth", "overflow", "overflowX", "overflowY", "padding", "paddingBottom", "paddingLeft",
+        "paddingRight", "paddingTop", "pageBreakAfter", "pageBreakBefore", "pageBreakInside", "perspective",
+        "perspectiveOrigin", "position", "quotes", "resize", "right", "tableLayout", "tabSize", "textAlign", "textAlignLast",
+        "textDecoration", "textDecorationColor", "textDecorationLine", "textDecorationStyle", "textIndent", "textJustify",
+        "textOverflow", "textShadow", "textTransform", "top", "transform", "transformOrigin", "transformStyle", "transition",
+        "transitionProperty", "transitionDuration", "transitionTimingFunction", "transitionDelay", "unicodeBidi",
+        "userSelect", "verticalAlign", "visibility", "whiteSpace", "width", "wordBreak", "wordSpacing", "wordWrap",
+        "widows", "zIndex", "fontSmoothing", "osxFontSmoothing", "fontFeatureSettings"];
+
+    var disallowedFunctions = /expression|javascript|url/gi;
+
+    function sanitizeCSS(style) {
+        for (var key in style) {
+            if (style.hasOwnProperty(key)) {
+                var value = $.trim(style[key]);
+                var vendorSpecificPrefixRemovedKey = key.replace(/(Webkit|Moz|Ms|ms)([A-Z])/g, function ($1, $2, $3) {
+                    return $3.toLowerCase()
+                });
+
+                if ((allowedCssProperties.indexOf(key) === -1 &&
+                        allowedCssProperties.indexOf(vendorSpecificPrefixRemovedKey) === -1)
+                    || value.match(disallowedFunctions)) {
+
+                    if (value.match(/url/gi) || key === "src") {
+                        var urlSafe = value.replace(/url\(\s*['"]?([\w.\-]+)['"]?\s*\)/g, function ($1, $2) {
+                            return "_dt_safe(" + contextPath + field.filesPath + "/" + $2 + ")";
+                        });
+                        if (!urlSafe.match(disallowedFunctions)) {
+                            style[key] = urlSafe.replace(/_dt_safe/g, "url");
+                            continue;
+                        }
+                    }
+
+                    delete style[key];
+                }
+            }
+        }
+        return style;
+    }
+
+    function addCSSRule(selector, rules, globalSelector) {
+        try {
+            var sheet = document.styleSheets[0];
+            var index = sheet.cssRules.length;
+            if (sheet.insertRule) {
+                var rule = rules;
+
+                if (selector) {
+                    rule = selector + "{" + rule + "}";
+                }
+
+                if (globalSelector) {
+                    rule = globalSelector + "{" + rule + "}";
+                }
+
+                sheet.insertRule(rule, index);
+            } else if (sheet.addRule) {
+                sheet.addRule(selector, rules, index);
+            }
+        } catch (e) {
+        }
+    }
+
+
+    function keyEventDetail(keyEvent) {
+        if (keyEvent.keyCode !== undefined) {
+            var keyCode = keyEvent.keyCode;
+            if (keyCode === 13) {
+                return {
+                    "keyCode": keyCode
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function onkeyup(e) {
+        if (!e) {
+            return;
+        }
+        notify("keyUp", null, keyEventDetail(e));
+    }
+
+    function onkeydown(e) {
+        if (!e) {
+            return;
+        }
+        notify("keyDown", null, keyEventDetail(e));
+    }
+
+    function onblur() {
+        lastKnownFocus = false;
+        notify("blur");
+    }
+
+    function eventHandler(eventName, event) {
+        notify(eventName);
+    }
+
+    function notify(event, sourceFieldName, eventProperties) {
+        if (field.masterField) {
+            var additionalEventData = {
+                "field": sourceFieldName || field.fieldName,
+                "type": event
+            };
+
+            validate(gather(), 'change', $.extend({}, additionalEventData, eventProperties));
+        } else {
+            var message = {
+                "instanceId": field.instanceId,
+                "messageType": "fieldEvent",
+                "fieldName": field.fieldName,
+                "domEvent": event,
+                "domEventProperties": eventProperties
+            };
+            window.parent.frames[getFrameName(field.masterFieldName)].postMessage(message, "*");
+        }
+    }
+
+    function getAllowedTypes() {
+        //adjusting stripe to contain only the allowed cards
+        // update overloaded types
+        for (var i = $.payment.cards.length; i--;) {
+            var stripeCard = $.payment.cards[i];
+
+            for (var j = 0; j < additionalCards.length; j++) {
+                if (stripeCard.type === additionalCards[j].type) {
+                    $.payment.cards[i] = additionalCards[j];
+                    additionalCards.splice(j, 1);
+                    break;
+                }
+            }
+        }
+
+        // prepend the additional types
+        for (var i = additionalCards.length - 1; i >= 0; i--) {
+            $.payment.cards.unshift(additionalCards[i]);
+        }
+
+        // remove the types that are not desired
+        if (field.paymentMethods) {
+            for (var i = $.payment.cards.length; i--;) {
+                var stripeCard = $.payment.cards[i];
+                if (!field.paymentMethods.hasOwnProperty(stripeCard.type)) {
+                    $.payment.cards.splice(i, 1);
+                }
+            }
+        }
+    }
+
+    if (field.fieldType === 'copyToClipboard') {
+        $(fieldElement).click(function () {
+            function copyToClipboardReply(field, error) {
+                var copyToClipboardResponse = {
+                    'field': field.copyToClipboardTargetFieldName,
+                    'result': error ? 'error' : 'success'
+                };
+
+                if (error) {
+                    copyToClipboardResponse.error = error.message;
+                }
+
+                window.parent.postMessage({
+                    'instanceId': field.instanceId,
+                    'messageType': 'copyToClipboard',
+                    'response': copyToClipboardResponse
+                }, '*');
+            }
+
+            try {
+                if (!navigator.clipboard) {
+                    throw new Error('Clipboard is not supported. This could be due to browser compatibility or not browsing via HTTPS.');
+                }
+
+                var frame = window.parent.frames[getFrameName(field.copyToClipboardTargetFieldName)];
+                var value = frame.fieldElement.value.replace(/\s/g, '');
+
+                navigator.clipboard.writeText(value)
+                    .then(function () {
+                        copyToClipboardReply(field);
+                    })
+                    .catch(function (error) {
+                        copyToClipboardReply(field, error);
+                    });
+            } catch (error) {
+                copyToClipboardReply(field, error);
+            }
+        });
+    } else if (field.fieldType === 'applePay') {
+        initiateApplePay(field, function (details) {
+            fieldReady(details);
+        });
+    } else if (field.fieldType === 'googlePay') {
+        initiateGooglePay(field, function (details) {
+            fieldReady(details);
+        });
+    } else if (field.readOnly) {
+        switch (field.fieldName) {
+            case "cardNumber": {
+                if (field.mode === Mode.SHOW) {
+                    // $(fieldElement).val($.payment.formatCardNumber($(fieldElement).val()));
+                }
+                break;
+            }
+        }
+    } else {
+        window.onfocus = function () {
+            document.getElementById("field").focus();
+            lastKnownFocus = true;
+            notify("focus");
+
+            $.each(field.fieldNames, function (index, fieldName) {
+                if (fieldName !== field.fieldName) {
+                    var otherFrameName = getFrameName(fieldName);
+                    try {
+                        window.parent.frames[otherFrameName].postMessage({
+                            "instanceId": field.instanceId,
+                            "messageType": "checkFocus"
+                        }, "*");
+                    } catch (ignore) {
+                    }
+                }
+            });
+        };
+
+        fieldElement.onkeyup = onkeyup;
+        fieldElement.onkeydown = onkeydown;
+        fieldElement.onblur = onblur;
+
+        var supportsPassiveEventListeners = (function testPassiveEventListeners() {
+            var hasSupport = false;
+            try {
+                var opts = Object.defineProperty({}, 'passive', {
+                    get: function () {
+                        hasSupport = true;
+                        return false;
+                    }
+                });
+                var noop = function () {
+                };
+                window.addEventListener('test', noop, opts);
+                window.removeEventListener('test', noop, opts);
+            } catch (e) {
+            }
+            return hasSupport;
+        })();
+
+        ["touchstart", "touchmove", "touchend", "touchcancel", "touchforcechange"]
+            .forEach(function (eventName) {
+                window.fieldElement.addEventListener(eventName, function (event) {
+                    eventHandler(eventName, event);
+                }, supportsPassiveEventListeners ? {passive: true} : false);
+            });
+        switch (field.fieldName) {
+            case "cardNumber": {
+                getAllowedTypes();
+                // setup formatting
+                $(fieldElement).payment('formatCardNumber');
+                break;
+            }
+            case "cvv": {
+                getAllowedTypes();
+                $(fieldElement).payment('formatCardCVC');
+                break;
+            }
+        }
+
+        // setup autocompletion
+        if (field.fieldName === 'cardNumber') {
+            $.each({
+                expiryMonth: 'cc-exp-month',
+                expiryYear: 'cc-exp-year',
+                cvv: 'cc-csc',
+                holderName: 'cc-name'
+            }, function (fieldName, autocompleteAttribute) {
+                $('<input/>')
+                    .attr({
+                        id: fieldName,
+                        name: fieldName,
+                        autocomplete: autocompleteAttribute,
+                        tabindex: '-1',
+                        'aria-hidden': 'true'
+                    })
+                    .addClass('autocompleteField')
+                    .on('input', function (event) {
+                        var value = $(this).val();
+                        if (fieldName === 'cvv') {
+                            $(this).val('');
+                            try {
+                                var frame = window.parent.frames[getFrameName('cvv')];
+                                frame.fieldElement.value = value;
+                            } catch (ignore) {
+                            }
+                        } else {
+                            validate(gather(), 'change', {
+                                field: fieldName,
+                                type: 'autocomplete',
+                                value: value
+                            });
+                        }
+
+                    })
+                    .appendTo($('#form'));
+            });
+        }
+    }
+
+    if (field.fieldType !== 'googlePay' && field.fieldType !== 'applePay') {
+        fieldReady({});
+    }
+}
+
+function binarySearch(value, list) {
+    var low = 0;
+    var high = list.length - 1;
+    var position = -1;
+    var found = false;
+    var mid;
+    var valueSliced;
+
+    while (found === false && low <= high) {
+        mid = Math.floor((low + high) / 2);
+        rangeSize = list[mid][0].toString().length
+
+        valueSliced = value.slice(0, rangeSize)
+        if (list[mid][0] <= valueSliced && list[mid][1] >= valueSliced) {
+            found = true;
+            position = mid;
+        } else if (list[mid][0] > valueSliced) {
+            high = mid - 1;
+        } else {
+            low = mid + 1;
+        }
+    }
+    return position
+}

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<!-- saved from url=(0056)https://rclass.com.mx/Krystal_files/paymentField(1).html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+
+    <style type="text/css">
+
+        body, html, form {
+            height: 100%;
+        }
+
+        body {
+            background: transparent;
+            margin: 0;
+        }
+
+        #field {
+            background: transparent;
+            border-style: none;
+            width: 100%; height: 100%;
+            box-sizing: border-box;
+        }
+
+        form {
+            margin: 0;
+            box-sizing: border-box;
+        }
+
+        .invisible {
+            position: absolute;
+            border: 0;
+            clip: rect(0 0 0 0);
+            height: 1px;
+            margin: -1px;
+            overflow: hidden;
+            padding: 0;
+            width: 1px;
+        }
+
+        /* Don't show the number increment/decrement spinner in number fields */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type='number'] {
+            -moz-appearance: textfield;
+        }
+
+        input:focus {
+            outline-width: 0;
+        }
+
+        input:invalid, textarea:invalid {
+            box-shadow: none;
+        }
+
+        .autocompleteField {
+            opacity: 0; pointer-events: none; height: 2px; width: 2px; position: absolute; top: -2px;
+        }
+    </style>
+</head>
+<body>
+
+
+    
+    
+    
+        <form id="form" onsubmit="return false;" accept-charset="UTF-8">
+            <input id="field" type="tel" size="4" class="empty" maxlength="4" autocomplete="cc-csc" aria-label="" placeholder="_ _ _" style="font: 500 14px / 1.5 Roboto, sans-serif;">
+        </form>
+    
+
+
+
+<script src="./jquery.min.js.descarga"></script>
+<script src="./jquery.payment-3.0.0.min.js.descarga" type="text/javascript"></script>
+
+
+<script src="./field.js.descarga" type="text/javascript"></script>
+
+
+
+
+
+
+<script type="text/javascript">
+    var coBrandingRanges = null;
+    
+</script>
+
+<script type="text/javascript">
+    $(function() {
+        secureField( {"formId":"250624212639428118","fieldName":"cvv","debug":false,"fieldNames":["cardNumber","cvv"],"coBrandingEnabled":false,"filesPath":"/merchantFiles/220901041949560714","readOnly":false,"transactionId":"250624212638958011","mode":"INIT","instanceId":"2e0wfi7ej","merchantId":"3000022844","tds2MethodUrlNotificationTimeoutMillis":10000,"masterField":false,"masterFieldName":"cardNumber","fieldType":"cvv"}, "/upp", coBrandingRanges );
+    })
+</script>
+
+
+</body></html>
